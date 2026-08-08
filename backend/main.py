@@ -80,6 +80,7 @@ origins = [
     FRONTEND_URL,
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "https://nifty50-ai.vercel.app",
     "http://localhost:5174",
     "http://127.0.0.1:5174",
     "http://localhost:5175",
@@ -93,6 +94,7 @@ origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -131,6 +133,8 @@ def check_model_loaded():
         )
 
 @app.get("/", status_code=status.HTTP_200_OK)
+@app.get("/api", status_code=status.HTTP_200_OK)
+@app.get("/api/", status_code=status.HTTP_200_OK)
 @app.get("/api/health", status_code=status.HTTP_200_OK)
 def read_root():
     """Health check endpoint containing model and dataset status."""
