@@ -19,6 +19,13 @@
       }
     },
     {
+      "source": "/:path((?!api/|assets/|favicon\\.svg|icons\\.svg).*)",
+      "destination": {
+        "service": "frontend",
+        "path": "/index.html"
+      }
+    },
+    {
       "source": "/(.*)",
       "destination": {
         "service": "frontend"
