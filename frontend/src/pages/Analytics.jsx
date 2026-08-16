@@ -8,32 +8,30 @@ import {
   Layers, Sliders, RefreshCw 
 } from 'lucide-react';
 import { apiService } from '../services/api';
+import { useTheme } from '../components/ThemeContext';
 import { SkeletonLoader, ErrorState } from '../components/LoadingStates';
 
 export const Analytics = () => {
+  const { isDark } = useTheme();
   const [chartData, setChartData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const fetchData = async () => {
-    console.log("📍 [Analytics Page]: Executing fetchData()...");
     setLoading(true);
     setError(null);
     try {
       const data = await apiService.getChartData();
-      console.log("✅ [Analytics Page]: Received chart data count:", data?.length);
       setChartData(data);
     } catch (err) {
-      console.error('❌ [Analytics Page]: Error fetching analytics data:', err);
+      console.error('Error fetching analytics data:', err);
       setError('Unable to fetch analytics data. Make sure backend service is active.');
     } finally {
-      console.log("🏁 [Analytics Page]: Clearing loading state.");
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    console.log("📍 [Analytics Page]: Component mounted.");
     fetchData();
   }, []);
 

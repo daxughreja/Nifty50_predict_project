@@ -33,6 +33,13 @@
       }
     },
     {
+      "source": "/performance",
+      "destination": {
+        "service": "frontend",
+        "url": "/index.html"
+      }
+    },
+    {
       "source": "/analytics",
       "destination": {
         "service": "frontend",

@@ -3,12 +3,11 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
-  // Check localstorage or default to dark mode for a premium trading platform look
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('theme');
-    if (saved) return saved;
+    if (saved === 'dark' || saved === 'light') return saved;
     const userPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    return userPrefersDark ? 'dark' : 'dark'; // default to dark for TradingView feel, but check preference
+    return userPrefersDark ? 'dark' : 'light';
   });
 
   useEffect(() => {
@@ -28,7 +27,7 @@ export const ThemeProvider = ({ children }) => {
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, isDark: theme === 'dark' }}>
+    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme, isDark: theme === 'dark' }}>
       {children}
     </ThemeContext.Provider>
   );

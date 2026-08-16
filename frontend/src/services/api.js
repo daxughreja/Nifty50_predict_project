@@ -126,6 +126,19 @@ export const apiService = {
   },
 
   /**
+   * Fetch model accuracy and evaluation metrics
+   */
+  async getModelPerformance() {
+    try {
+      const response = await apiClient.get('/api/performance');
+      return response.data;
+    } catch (error) {
+      console.error('API Error (getModelPerformance):', error);
+      throw error;
+    }
+  },
+
+  /**
    * Run closing price prediction
    * @param {Object} inputData - { open, high, low, close }
    */
@@ -153,3 +166,4 @@ export const apiService = {
 };
 
 export default apiService;
+

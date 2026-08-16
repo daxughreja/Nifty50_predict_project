@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { 
   Table as TableIcon, Search, ArrowUpDown, ChevronLeft, 
   ChevronRight, Download, Filter, HelpCircle 
@@ -6,6 +7,7 @@ import {
 import { apiService } from '../services/api';
 import { SkeletonLoader, ErrorState, EmptyState } from '../components/LoadingStates';
 import { showToast } from '../layouts/RootLayout';
+import { SpotlightCard } from '../components/SpotlightCard';
 
 export const Dataset = () => {
   const [data, setData] = useState([]);

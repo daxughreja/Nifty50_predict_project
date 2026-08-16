@@ -16,14 +16,94 @@ load_dotenv()
 # Setup logger to write directly to uvicorn console
 logger = logging.getLogger("uvicorn")
 
-# Global variables for model and data
+# Global variables for model, data, and performance cache
 model = None
 df = None
 model_error = None
 data_error = None
+performance_cache = None
 
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "model", "linear_regression_model.pkl")
 DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "new_data.csv")
+
+def compute_performance_metrics():
+    """Calculates evaluation metrics using chronological 20% holdout test split of new_data.csv"""
+    global performance_cache
+    if model is None or df is None:
+        return None
+    try:
+        cols = {c.lower(): c for c in df.columns}
+        open_col = cols.get("open", "open")
+        high_col = cols.get("high", "high")
+        low_col = cols.get("low", "low")
+        close_col = cols.get("close", "close")
+        target_col = cols.get("tomorrow_close", "Tomorrow_Close")
+        date_col = cols.get("date", "date")
+
+        X = df[[open_col, high_col, low_col, close_col]]
+        y_true = df[target_col]
+        dates = df[date_col] if date_col in df else pd.Series(range(len(df)))
+
+        test_size = int(len(df) * 0.2)
+        if test_size <= 0:
+            return None
+
+        X_test = X.iloc[-test_size:]
+        y_test = y_true.iloc[-test_size:]
+        close_ref = df[close_col].iloc[-test_size:]
+        dates_test = dates.iloc[-test_size:]
+
+        y_pred = model.predict(X_test)
+
+        mae = float(np.mean(np.abs(y_test - y_pred)))
+        rmse = float(np.sqrt(np.mean((y_test - y_pred) ** 2)))
+        mape = float(np.mean(np.abs((y_test - y_pred) / y_test)) * 100)
+
+        ss_tot = np.sum((y_test - np.mean(y_test)) ** 2)
+        ss_res = np.sum((y_test - y_pred) ** 2)
+        r2 = float(1 - (ss_res / ss_tot))
+
+        actual_dir = np.sign(y_test.values - close_ref.values)
+        pred_dir = np.sign(y_pred - close_ref.values)
+        dir_acc = float(np.mean(actual_dir == pred_dir) * 100)
+
+        sample_count = min(100, test_size)
+        chart_records = []
+        for i in range(test_size - sample_count, test_size):
+            actual_val = float(y_test.iloc[i])
+            pred_val = float(y_pred[i])
+            ref_val = float(close_ref.iloc[i])
+            date_val = str(dates_test.iloc[i])
+            err_val = float(actual_val - pred_val)
+
+            act_d = 1 if actual_val > ref_val else (-1 if actual_val < ref_val else 0)
+            prd_d = 1 if pred_val > ref_val else (-1 if pred_val < ref_val else 0)
+
+            chart_records.append({
+                "date": date_val,
+                "reference_close": round(ref_val, 2),
+                "actual_close": round(actual_val, 2),
+                "predicted_close": round(pred_val, 2),
+                "error": round(err_val, 2),
+                "direction_correct": bool(act_d == prd_d)
+            })
+
+        performance_cache = {
+            "r2_score": round(r2, 4),
+            "mae": round(mae, 2),
+            "rmse": round(rmse, 2),
+            "mape": round(mape, 2),
+            "directional_accuracy": round(dir_acc, 2),
+            "test_samples_count": test_size,
+            "total_samples_count": len(df),
+            "methodology": "Chronological 20% holdout test dataset evaluation",
+            "chart_data": chart_records
+        }
+        logger.info(f"Performance metrics computed successfully: R2={r2:.4f}, MAE={mae:.2f}, RMSE={rmse:.2f}, MAPE={mape:.2f}%, DirAcc={dir_acc:.2f}%")
+        return performance_cache
+    except Exception as e:
+        logger.error(f"Failed to compute performance metrics: {str(e)}")
+        return None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -62,6 +142,10 @@ async def lifespan(app: FastAPI):
             data_error = f"Failed to load dataset: {str(e)}"
             logger.error(data_error)
             
+    # Compute performance metrics cache
+    if model is not None and df is not None:
+        compute_performance_metrics()
+
     logger.info("Startup sequence finished.")
     logger.info("--------------------------------------------------")
     yield
@@ -203,7 +287,6 @@ def get_statistics():
             "average_low": float(df[low_col].mean()) if low_col in df else None,
         }
         
-        # Dynamic stats for all numerical columns
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         dynamic_stats = {}
         for col in numeric_cols:
@@ -238,6 +321,22 @@ def get_chart_data():
             detail=f"Failed to fetch chart data: {str(e)}"
         )
 
+@app.get("/api/performance", status_code=status.HTTP_200_OK)
+@app.get("/api/accuracy", status_code=status.HTTP_200_OK)
+def get_performance_metrics():
+    """Returns real dynamic model evaluation metrics (R2, MAE, RMSE, MAPE, Directional Accuracy) calculated on holdout test set."""
+    check_model_loaded()
+    check_data_loaded()
+    global performance_cache
+    if performance_cache is None:
+        performance_cache = compute_performance_metrics()
+    if performance_cache is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to calculate model performance metrics."
+        )
+    return performance_cache
+
 @app.post("/api/predict", status_code=status.HTTP_200_OK)
 def predict(payload: PredictionInput):
     """
@@ -246,7 +345,6 @@ def predict(payload: PredictionInput):
     """
     check_model_loaded()
     
-    # Validation checks
     if payload.low > payload.high:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -279,3 +377,4 @@ def predict(payload: PredictionInput):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Prediction service failure: {str(e)}"
         )
+
