@@ -19,48 +19,6 @@
       }
     },
     {
-      "source": "/dashboard",
-      "destination": {
-        "service": "frontend",
-        "url": "/index.html"
-      }
-    },
-    {
-      "source": "/predict",
-      "destination": {
-        "service": "frontend",
-        "url": "/index.html"
-      }
-    },
-    {
-      "source": "/performance",
-      "destination": {
-        "service": "frontend",
-        "url": "/index.html"
-      }
-    },
-    {
-      "source": "/analytics",
-      "destination": {
-        "service": "frontend",
-        "url": "/index.html"
-      }
-    },
-    {
-      "source": "/dataset",
-      "destination": {
-        "service": "frontend",
-        "url": "/index.html"
-      }
-    },
-    {
-      "source": "/about",
-      "destination": {
-        "service": "frontend",
-        "url": "/index.html"
-      }
-    },
-    {
       "source": "/(.*)",
       "destination": {
         "service": "frontend"
