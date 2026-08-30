@@ -23,7 +23,7 @@ apiClient.interceptors.request.use(
   }
 );
 
-// 4. Response Interceptor with Automatic Backend Startup Retry Mechanism
+// 4. Response Interceptor with Automatic Retry Mechanism for Server Cold Starts
 apiClient.interceptors.response.use(
   (response) => {
     console.log(`✅ [Axios Response Received] ${response.config.method?.toUpperCase()} ${response.config.url} -> Status ${response.status}`);
@@ -62,7 +62,6 @@ export const apiService = {
       const response = await apiClient.get('/api/health');
       return response.data;
     } catch (error) {
-      // Fallback to root endpoint if /api/health is unavailable
       try {
         const rootResp = await apiClient.get('/');
         return rootResp.data;
@@ -70,6 +69,19 @@ export const apiService = {
         console.error('API Error (getHealth):', rootErr);
         throw rootErr;
       }
+    }
+  },
+
+  /**
+   * Fetch available trained models metadata
+   */
+  async getModels() {
+    try {
+      const response = await apiClient.get('/api/models');
+      return response.data;
+    } catch (error) {
+      console.error('API Error (getModels):', error);
+      throw error;
     }
   },
 
@@ -126,25 +138,32 @@ export const apiService = {
   },
 
   /**
-   * Fetch model accuracy and evaluation metrics
+   * Fetch multi-model performance evaluation metrics (RSS, RMSE, R2, ranking)
    */
   async getModelPerformance() {
     try {
-      const response = await apiClient.get('/api/performance');
+      const response = await apiClient.get('/api/model-performance');
       return response.data;
     } catch (error) {
       console.error('API Error (getModelPerformance):', error);
-      throw error;
+      // Fallback to /api/performance if endpoint alias needed
+      try {
+        const fallbackResp = await apiClient.get('/api/performance');
+        return fallbackResp.data;
+      } catch (fallbackErr) {
+        throw fallbackErr;
+      }
     }
   },
 
   /**
-   * Run closing price prediction
-   * @param {Object} inputData - { open, high, low, close }
+   * Run closing price prediction using selected ML model
+   * @param {Object} inputData - { model, open, high, low, close }
    */
   async predictPrice(inputData) {
     try {
       const response = await apiClient.post('/api/predict', {
+        model: inputData.model || 'LinearRegression',
         open: parseFloat(inputData.open),
         high: parseFloat(inputData.high),
         low: parseFloat(inputData.low),
@@ -166,4 +185,3 @@ export const apiService = {
 };
 
 export default apiService;
-

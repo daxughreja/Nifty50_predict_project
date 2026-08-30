@@ -1,19 +1,23 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ResponsiveContainer, LineChart, Line, AreaChart, Area, 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell 
 } from 'recharts';
 import { 
   LineChart as ChartIcon, BarChart3, TrendingUp, 
-  Layers, Sliders, RefreshCw 
+  Layers, Sliders, RefreshCw, Award, Activity 
 } from 'lucide-react';
 import { apiService } from '../services/api';
 import { useTheme } from '../components/ThemeContext';
 import { SkeletonLoader, ErrorState } from '../components/LoadingStates';
+import { SpotlightCard } from '../components/SpotlightCard';
+
+const COLOR_SERIES = ['#10b981', '#3b82f6', '#8b5cf6', '#6366f1', '#f59e0b', '#ec4899', '#06b6d4', '#84cc16', '#eab308', '#ef4444'];
 
 export const Analytics = () => {
   const { isDark } = useTheme();
   const [chartData, setChartData] = useState([]);
+  const [performanceData, setPerformanceData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -21,8 +25,17 @@ export const Analytics = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiService.getChartData();
-      setChartData(data);
+      const results = await Promise.allSettled([
+        apiService.getChartData(),
+        apiService.getModelPerformance()
+      ]);
+
+      if (results[0].status === 'fulfilled') {
+        setChartData(results[0].value || []);
+      }
+      if (results[1].status === 'fulfilled') {
+        setPerformanceData(results[1].value || null);
+      }
     } catch (err) {
       console.error('Error fetching analytics data:', err);
       setError('Unable to fetch analytics data. Make sure backend service is active.');
@@ -83,6 +96,8 @@ export const Analytics = () => {
     });
   }, [chartData, openKey, closeKey, highKey, lowKey]);
 
+  const modelMetrics = performanceData?.models || [];
+
   if (loading) {
     return (
       <div className="space-y-8 py-4">
@@ -101,9 +116,9 @@ export const Analytics = () => {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Financial Analytics Deep-Dive</h2>
+          <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Financial & Multi-Model Analytics</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Advanced correlation, spreads, and moving averages on top of Nifty 50 CSV.
+            Advanced correlation, price spreads, and multi-model AI regression metrics.
           </p>
         </div>
         <button
@@ -115,6 +130,88 @@ export const Analytics = () => {
         </button>
       </div>
 
+      {/* NEW: MULTI-MODEL PERFORMANCE COMPARISON SECTION */}
+      {modelMetrics.length > 0 && (
+        <SpotlightCard className="p-6 md:p-8 space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2.5">
+              <Award className="text-emerald-500" size={22} />
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Model Performance Comparison</h3>
+                <p className="text-xs text-slate-400 dark:text-slate-500">Comparing R² variance fit and RMSE error across all 10 trained models.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* R2 Score Comparison Bar Chart */}
+            <div className="p-5 rounded-2xl bg-slate-100/60 dark:bg-slate-900/60 border border-slate-200/50 dark:border-slate-800 space-y-3">
+              <div className="flex justify-between items-center text-xs font-bold">
+                <span className="text-slate-900 dark:text-white">R² Score Comparison</span>
+                <span className="text-emerald-500">Higher = Better</span>
+              </div>
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={modelMetrics} margin={{ left: -20, right: 10, bottom: 25 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(156, 163, 175, 0.15)" />
+                    <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#64748b', angle: -20, textAnchor: 'end' }} tickLine={false} axisLine={false} interval={0} />
+                    <YAxis domain={[0, 1]} tick={{ fontSize: 9, fill: '#64748b' }} tickLine={false} axisLine={false} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        borderRadius: '12px',
+                        color: '#f8fafc',
+                        fontSize: '11px'
+                      }}
+                      formatter={(val) => [(Number(val) * 100).toFixed(3) + '%', 'R² Score']}
+                    />
+                    <Bar dataKey="r2" radius={[4, 4, 0, 0]}>
+                      {modelMetrics.map((entry, index) => (
+                        <Cell key={`r2-cell-${index}`} fill={COLOR_SERIES[index % COLOR_SERIES.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* RMSE Comparison Bar Chart */}
+            <div className="p-5 rounded-2xl bg-slate-100/60 dark:bg-slate-900/60 border border-slate-200/50 dark:border-slate-800 space-y-3">
+              <div className="flex justify-between items-center text-xs font-bold">
+                <span className="text-slate-900 dark:text-white">RMSE Error Comparison (₹)</span>
+                <span className="text-blue-500">Lower = Better</span>
+              </div>
+              <div className="h-64 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={modelMetrics} margin={{ left: -10, right: 10, bottom: 25 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(156, 163, 175, 0.15)" />
+                    <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#64748b', angle: -20, textAnchor: 'end' }} tickLine={false} axisLine={false} interval={0} />
+                    <YAxis tick={{ fontSize: 9, fill: '#64748b' }} tickLine={false} axisLine={false} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        borderRadius: '12px',
+                        color: '#f8fafc',
+                        fontSize: '11px'
+                      }}
+                      formatter={(val) => [`₹${Number(val).toFixed(2)}`, 'RMSE']}
+                    />
+                    <Bar dataKey="rmse" radius={[4, 4, 0, 0]}>
+                      {modelMetrics.map((entry, index) => (
+                        <Cell key={`rmse-cell-${index}`} fill={COLOR_SERIES[index % COLOR_SERIES.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        </SpotlightCard>
+      )}
+
+      {/* EXISTING STOCK ANALYTICS CHARTS GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Close Price & SMA-10 Line Chart */}
         <div className="p-6 rounded-2xl glass-panel border border-white/20 dark:border-slate-800 shadow-lg space-y-4">

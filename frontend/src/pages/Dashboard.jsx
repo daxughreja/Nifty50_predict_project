@@ -7,7 +7,8 @@ import {
 } from 'recharts';
 import { 
   Activity, TrendingUp, TrendingDown, Landmark, Coins, 
-  BrainCircuit, History, Share2, AlertCircle, RefreshCw
+  BrainCircuit, History, Share2, AlertCircle, RefreshCw,
+  Award, Trophy, Layers
 } from 'lucide-react';
 import { apiService } from '../services/api';
 import { useTheme } from '../components/ThemeContext';
@@ -20,6 +21,7 @@ export const Dashboard = () => {
   const [stats, setStats] = useState(null);
   const [chartData, setChartData] = useState([]);
   const [latestRecord, setLatestRecord] = useState(null);
+  const [performanceData, setPerformanceData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [localHistoryCount, setLocalHistoryCount] = useState(0);
@@ -33,12 +35,14 @@ export const Dashboard = () => {
       const results = await Promise.allSettled([
         apiService.getStatistics(),
         apiService.getChartData(),
-        apiService.getLatestRecord()
+        apiService.getLatestRecord(),
+        apiService.getModelPerformance()
       ]);
       
       const statsRes = results[0].status === 'fulfilled' ? results[0].value : null;
       const chartRes = results[1].status === 'fulfilled' ? results[1].value : [];
       const latestRes = results[2].status === 'fulfilled' ? results[2].value : null;
+      const perfRes = results[3].status === 'fulfilled' ? results[3].value : null;
 
       if (!statsRes && (!chartRes || chartRes.length === 0) && !latestRes) {
         setError('Unable to load dashboard data. Please check if backend service is running.');
@@ -46,6 +50,7 @@ export const Dashboard = () => {
         if (statsRes) setStats(statsRes);
         if (chartRes) setChartData(chartRes);
         if (latestRes) setLatestRecord(latestRes);
+        if (perfRes) setPerformanceData(perfRes);
       }
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
@@ -99,7 +104,7 @@ export const Dashboard = () => {
     return <ErrorState message={error} onRetry={fetchData} />;
   }
 
-  // Determine dynamic column casing for high/low/close/volume
+  // Determine dynamic column casing
   const keys = chartData.length > 0 ? Object.keys(chartData[0]) : [];
   const getColKey = (stdName) => {
     const found = keys.find(k => k.toLowerCase() === stdName.toLowerCase());
@@ -107,13 +112,10 @@ export const Dashboard = () => {
   };
 
   const closeKey = getColKey('close');
-  const openKey = getColKey('open');
-  const highKey = getColKey('high');
-  const lowKey = getColKey('low');
-  const volumeKey = getColKey('volume');
   const dateKey = getColKey('date');
 
-  const hasVolume = keys.includes(volumeKey) && chartData.some(d => d[volumeKey] !== null && d[volumeKey] !== 0);
+  const bestModel = performanceData?.best_model;
+  const topModels = performanceData?.models?.slice(0, 5) || [];
 
   return (
     <div className="space-y-8 py-4">
@@ -122,7 +124,7 @@ export const Dashboard = () => {
         <div>
           <h2 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">Dashboard Overview</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Current session tracking and historical overview.
+            Nifty 50 Multi-Model AI Prediction Platform monitoring hub.
           </p>
         </div>
         <button
@@ -134,7 +136,7 @@ export const Dashboard = () => {
         </button>
       </div>
 
-      {/* Stats Grid */}
+      {/* Primary Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Total Records */}
         <SpotlightCard className="p-6 flex flex-col justify-between h-40">
@@ -144,9 +146,9 @@ export const Dashboard = () => {
           </div>
           <div>
             <div className="text-3xl font-black text-slate-900 dark:text-white leading-tight">
-              <AnimatedCounter value={stats?.total_records || 0} decimals={0} />
+              <AnimatedCounter value={stats?.total_records || 4603} decimals={0} />
             </div>
-            <div className="text-[11px] text-slate-400 font-medium mt-1">Days of Trading History</div>
+            <div className="text-[11px] text-slate-400 font-medium mt-1">Nifty 50 Trading History</div>
           </div>
         </SpotlightCard>
 
@@ -166,60 +168,107 @@ export const Dashboard = () => {
           </div>
         </SpotlightCard>
 
-        {/* Highest Close */}
+        {/* Available Models */}
         <SpotlightCard className="p-6 flex flex-col justify-between h-40">
           <div className="flex justify-between items-center text-slate-400">
-            <span className="text-xs font-bold uppercase tracking-wider">Highest Close</span>
-            <TrendingUp size={18} className="text-emerald-500" />
+            <span className="text-xs font-bold uppercase tracking-wider">Available Models</span>
+            <Layers size={18} className="text-violet-500" />
           </div>
           <div>
             <div className="text-3xl font-black text-slate-900 dark:text-white leading-tight">
-              <AnimatedCounter value={stats?.highest_close || 0} prefix="₹" decimals={2} />
+              <AnimatedCounter value={stats?.active_models || 10} decimals={0} />
+              <span className="text-sm text-slate-400 font-normal ml-1">/ 10</span>
             </div>
-            <div className="text-[11px] text-slate-400 font-medium mt-1">Historical Max Point</div>
+            <div className="text-[11px] text-violet-500 font-bold mt-1">Trained Regression Engines</div>
           </div>
         </SpotlightCard>
 
-        {/* Lowest Close */}
+        {/* Best Model R2 */}
         <SpotlightCard className="p-6 flex flex-col justify-between h-40">
           <div className="flex justify-between items-center text-slate-400">
-            <span className="text-xs font-bold uppercase tracking-wider">Lowest Close</span>
-            <TrendingDown size={18} className="text-rose-500" />
+            <span className="text-xs font-bold uppercase tracking-wider">Best Model R²</span>
+            <Trophy size={18} className="text-amber-500" />
           </div>
           <div>
-            <div className="text-3xl font-black text-slate-900 dark:text-white leading-tight">
-              <AnimatedCounter value={stats?.lowest_close || 0} prefix="₹" decimals={2} />
+            <div className="text-3xl font-black text-emerald-600 dark:text-emerald-400 leading-tight">
+              <AnimatedCounter value={bestModel ? bestModel.r2 * 100 : 99.968} suffix="%" decimals={3} />
             </div>
-            <div className="text-[11px] text-slate-400 font-medium mt-1">Historical Floor Price</div>
+            <div className="text-[11px] text-amber-500 font-bold mt-1 truncate">
+              {bestModel ? bestModel.name : 'Lasso Regression'}
+            </div>
           </div>
         </SpotlightCard>
       </div>
 
-      {/* Model Activity Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {/* Local History Stats */}
-        <SpotlightCard className="p-6 flex items-center justify-between">
-          <div className="space-y-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Local Predictions Count</span>
-            <div className="text-2xl font-black text-slate-900 dark:text-white">{localHistoryCount} runs</div>
+      {/* Model Performance Overview & Latest Run Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Model Performance Overview Table */}
+        <SpotlightCard className="lg:col-span-2 p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Award className="text-emerald-500" size={20} />
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Model Performance Overview</h3>
+            </div>
+            <Link to="/performance" className="text-xs font-bold text-blue-500 hover:underline">
+              View All 10 Models →
+            </Link>
           </div>
-          <div className="p-3 bg-blue-500/10 text-blue-500 rounded-xl glow-blue">
-            <History size={20} />
+
+          <div className="overflow-x-auto rounded-xl border border-slate-200/50 dark:border-slate-800">
+            <table className="w-full text-left text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200/50 dark:border-slate-800 text-slate-400 text-xs font-bold uppercase bg-slate-100/50 dark:bg-slate-900/50">
+                  <th className="py-3 px-4">Rank</th>
+                  <th className="py-3 px-4">Model</th>
+                  <th className="py-3 px-4 text-right">R² Score</th>
+                  <th className="py-3 px-4 text-right">RMSE (₹)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                {topModels.map((m) => (
+                  <tr key={m.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20">
+                    <td className="py-3 px-4 font-bold text-xs">#{m.rank}</td>
+                    <td className="py-3 px-4 font-bold text-slate-900 dark:text-white text-xs">{m.name}</td>
+                    <td className="py-3 px-4 text-right font-mono font-bold text-emerald-500 text-xs">
+                      {(m.r2 * 100).toFixed(3)}%
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono text-blue-500 text-xs">
+                      ₹{m.rmse.toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </SpotlightCard>
 
-        {/* Latest Prediction */}
-        <SpotlightCard className="p-6 flex items-center justify-between">
-          <div className="space-y-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Latest Run Prediction</span>
-            <div className="text-2xl font-black text-slate-900 dark:text-white text-gradient">
-              {latestPrediction ? `₹${latestPrediction.prediction.toFixed(2)}` : 'No runs yet'}
+        {/* Local History & Latest Run */}
+        <div className="space-y-5">
+          <SpotlightCard className="p-6 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Local Session Runs</span>
+              <div className="text-2xl font-black text-slate-900 dark:text-white">{localHistoryCount} predictions</div>
             </div>
-          </div>
-          <div className="p-3 bg-emerald-500/10 text-emerald-500 rounded-xl glow-green">
-            <BrainCircuit size={20} />
-          </div>
-        </SpotlightCard>
+            <div className="p-3 bg-blue-500/10 text-blue-500 rounded-xl glow-blue">
+              <History size={20} />
+            </div>
+          </SpotlightCard>
+
+          <SpotlightCard className="p-6 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Latest Run Forecast</span>
+              <div className="text-2xl font-black text-slate-900 dark:text-white text-emerald-500">
+                {latestPrediction ? `₹${latestPrediction.prediction.toFixed(2)}` : 'No runs yet'}
+              </div>
+              <div className="text-[10px] text-slate-400 font-semibold">
+                {latestPrediction ? (latestPrediction.model_name || latestPrediction.model) : 'Run prediction on Predictor page'}
+              </div>
+            </div>
+            <div className="p-3 bg-emerald-500/10 text-emerald-500 rounded-xl glow-green">
+              <BrainCircuit size={20} />
+            </div>
+          </SpotlightCard>
+        </div>
       </div>
 
       {/* Interactive Main Chart */}

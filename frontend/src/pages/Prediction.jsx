@@ -3,15 +3,32 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Cpu, Copy, Download, RotateCcw, Trash2, FileSpreadsheet, 
   Check, Play, ArrowUpRight, ArrowDownRight, Scale, Info, 
-  Sparkles, Zap, RefreshCw, CheckCircle2, TrendingUp, TrendingDown
+  Sparkles, Zap, RefreshCw, CheckCircle2, TrendingUp, TrendingDown,
+  Layers, Award
 } from 'lucide-react';
 import { apiService } from '../services/api';
 import { showToast } from '../layouts/RootLayout';
 import { SpotlightCard } from '../components/SpotlightCard';
 import { AnimatedCounter } from '../components/AnimatedCounter';
 
+const DEFAULT_MODELS = [
+  { id: "LinearRegression", name: "Linear Regression" },
+  { id: "Ridge", name: "Ridge Regression" },
+  { id: "Lasso", name: "Lasso Regression" },
+  { id: "ElasticNet", name: "Elastic Net" },
+  { id: "DecisionTree", name: "Decision Tree" },
+  { id: "RandomForest", name: "Random Forest" },
+  { id: "ExtraTrees", name: "Extra Trees" },
+  { id: "GradientBoosting", name: "Gradient Boosting" },
+  { id: "HistGradientBoosting", name: "Hist Gradient Boosting" },
+  { id: "SVR", name: "SVR" }
+];
+
 export const Prediction = () => {
   // Form State
+  const [selectedModel, setSelectedModel] = useState('LinearRegression');
+  const [availableModels, setAvailableModels] = useState(DEFAULT_MODELS);
+  const [performanceMap, setPerformanceMap] = useState({});
   const [formData, setFormData] = useState({
     open: '',
     high: '',
@@ -26,10 +43,43 @@ export const Prediction = () => {
   const [copied, setCopied] = useState(false);
   const [history, setHistory] = useState([]);
 
-  // Load history from localStorage on mount
+  // Load models metadata and performance metrics on mount
   useEffect(() => {
+    let isMounted = true;
+    
+    const loadMetadata = async () => {
+      try {
+        const [modelsRes, perfRes] = await Promise.allSettled([
+          apiService.getModels(),
+          apiService.getModelPerformance()
+        ]);
+
+        if (isMounted && modelsRes.status === 'fulfilled' && modelsRes.value?.models) {
+          const loaded = modelsRes.value.models.filter(m => m.status === 'loaded');
+          if (loaded.length > 0) {
+            setAvailableModels(loaded);
+          }
+        }
+
+        if (isMounted && perfRes.status === 'fulfilled' && perfRes.value?.models) {
+          const map = {};
+          perfRes.value.models.forEach(m => {
+            map[m.id] = m;
+          });
+          setPerformanceMap(map);
+        }
+      } catch (err) {
+        console.error('Error fetching model metadata for prediction page:', err);
+      }
+    };
+
+    loadMetadata();
+
+    // Load history from localStorage
     const savedHistory = JSON.parse(localStorage.getItem('prediction_history') || '[]');
     setHistory(savedHistory);
+
+    return () => { isMounted = false; };
   }, []);
 
   // Quick fill with latest NIFTY 50 market record
@@ -102,8 +152,9 @@ export const Prediction = () => {
     setResult(null);
     
     try {
-      // Call FastAPI prediction service
+      // Call FastAPI prediction service with chosen model
       const response = await apiService.predictPrice({
+        model: selectedModel,
         open: formData.open,
         high: formData.high,
         low: formData.low,
@@ -123,10 +174,14 @@ export const Prediction = () => {
       if (diffVal > 0.05) direction = 'bullish';
       else if (diffVal < -0.05) direction = 'bearish';
 
+      const modelDisplayName = response.model_name || availableModels.find(m => m.id === selectedModel)?.name || selectedModel;
+
       const newRecord = {
         id: Date.now() + Math.random().toString(36).substr(2, 5),
         date: new Date().toLocaleDateString(),
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        model: selectedModel,
+        model_name: modelDisplayName,
         inputs: {
           open: openVal,
           high: highVal,
@@ -140,7 +195,6 @@ export const Prediction = () => {
         prediction_time: response.prediction_time,
       };
 
-      // Stagger result state update slightly for animation trigger
       setTimeout(() => {
         setResult(newRecord);
 
@@ -148,12 +202,12 @@ export const Prediction = () => {
         const updatedHistory = [...history, newRecord];
         setHistory(updatedHistory);
         localStorage.setItem('prediction_history', JSON.stringify(updatedHistory));
-        showToast('Prediction generated successfully!', 'success');
+        showToast(`Prediction generated using ${modelDisplayName}!`, 'success');
       }, 400);
 
     } catch (err) {
       console.error('Failed to run prediction:', err);
-      showToast(err.message || 'Unable to generate prediction right now. Please check your connection and try again.', 'error');
+      showToast(err.message || 'Unable to generate prediction right now. Please check backend connection.', 'error');
     } finally {
       setLoading(false);
     }
@@ -176,10 +230,10 @@ export const Prediction = () => {
 
   const handleDownload = () => {
     if (!result) return;
-    const content = `NIFTY 50 AI Stock Price Forecast Report
+    const content = `NIFTY 50 MULTI-MODEL AI STOCK FORECAST REPORT
 ===================================================
-Generated At: ${result.date} ${result.time}
-Model Engine: Scikit-Learn Linear Regression (linear_regression_model.pkl)
+Generated At  : ${result.date} ${result.time}
+Selected Model: ${result.model_name} (${result.model}.pkl)
 ---------------------------------------------------
 INPUT METRICS (TODAY):
   Open Price : ₹${result.inputs.open.toFixed(2)}
@@ -193,12 +247,12 @@ PREDICTION RESULT (TOMORROW):
   Expected Price Change   : ${result.diff >= 0 ? '+' : ''}₹${result.diff.toFixed(2)} (${result.pctChange >= 0 ? '+' : ''}${result.pctChange.toFixed(2)}%)
   Market Sentiment        : ${result.direction.toUpperCase()}
 ===================================================
-Disclaimer: Forecasts are generated using Machine Learning based on historical Nifty 50 trends. Financial markets carry risks. For educational use only.`;
+Disclaimer: Forecasts are generated using trained ML models on Nifty 50 historical data. Financial markets carry risks. Educational use only.`;
     
     const element = document.createElement('a');
     const file = new Blob([content], { type: 'text/plain' });
     element.href = URL.createObjectURL(file);
-    element.download = `NIFTY50_AI_Prediction_${Date.now()}.txt`;
+    element.download = `NIFTY50_AI_Prediction_${result.model}_${Date.now()}.txt`;
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
@@ -223,10 +277,11 @@ Disclaimer: Forecasts are generated using Machine Learning based on historical N
   const exportHistoryCSV = () => {
     if (history.length === 0) return;
     
-    const headers = ['Date', 'Time', 'Open', 'High', 'Low', 'Close', 'Predicted Tomorrow Close', 'Expected Change', 'Direction'];
+    const headers = ['Date', 'Time', 'Model', 'Open', 'High', 'Low', 'Close', 'Predicted Tomorrow Close', 'Expected Change', 'Direction'];
     const rows = history.map((item) => [
       item.date,
       item.time,
+      item.model_name || item.model,
       item.inputs.open,
       item.inputs.high,
       item.inputs.low,
@@ -243,25 +298,31 @@ Disclaimer: Forecasts are generated using Machine Learning based on historical N
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', 'nifty50_prediction_history.csv');
+    link.setAttribute('download', 'nifty50_multi_model_predictions.csv');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     showToast('Exported prediction history as CSV.', 'success');
   };
 
+  const currentModelPerf = performanceMap[selectedModel];
+
   return (
     <div className="space-y-10 py-4">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
+          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-bold uppercase tracking-wider mb-1">
+            <Layers size={14} />
+            <span>Multi-Model AI Prediction Terminal</span>
+          </div>
           <h2 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">AI Prediction Terminal</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Input trading session OHLC parameters to generate next-day NIFTY 50 closing price forecast.
+            Select a trained Machine Learning model and input daily OHLC parameters for next-day close prediction.
           </p>
         </div>
 
-        {/* Quick Fill Button with Hover Micro-interaction */}
+        {/* Quick Fill Button */}
         <motion.button
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.97 }}
@@ -283,13 +344,57 @@ Disclaimer: Forecasts are generated using Machine Learning based on historical N
                 <Cpu size={20} />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Input Market OHLC Parameters</h3>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Model Selection & Input OHLC Parameters</h3>
                 <span className="text-[11px] text-slate-400 dark:text-slate-500">Values in Indian Rupees (₹)</span>
               </div>
             </div>
           </div>
 
           <form onSubmit={handlePredict} className="space-y-6">
+            {/* Model Selection Dropdown */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center justify-between">
+                <span>Select Prediction Model</span>
+                <span className="text-[10px] text-blue-500 font-extrabold uppercase">10 ML Models Available</span>
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="w-full pl-4 pr-10 py-3.5 rounded-xl bg-slate-100/80 dark:bg-slate-900/80 border border-blue-500/40 focus:outline-none focus:ring-2 focus:ring-blue-500/30 text-sm font-bold text-slate-900 dark:text-white transition cursor-pointer appearance-none shadow-sm"
+                >
+                  {availableModels.map((m) => (
+                    <option key={m.id} value={m.id} className="bg-slate-900 text-white font-semibold py-2">
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-blue-500 font-bold text-xs">
+                  ▼
+                </div>
+              </div>
+            </div>
+
+            {/* Selected Model Performance Badge */}
+            {currentModelPerf && (
+              <motion.div 
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs flex flex-wrap items-center justify-between gap-3 text-slate-700 dark:text-slate-200"
+              >
+                <div className="flex items-center space-x-2">
+                  <Award size={16} className="text-blue-500 shrink-0" />
+                  <span className="font-bold text-slate-900 dark:text-white">{currentModelPerf.name} Performance:</span>
+                </div>
+                <div className="flex items-center space-x-4 font-mono text-[11px]">
+                  <div>R² Score: <span className="font-bold text-emerald-500">{(currentModelPerf.r2 * 100).toFixed(3)}%</span></div>
+                  <div>RMSE: <span className="font-bold text-blue-500">₹{currentModelPerf.rmse.toFixed(2)}</span></div>
+                  <div>Rank: <span className="font-bold text-amber-500">#{currentModelPerf.rank}</span></div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* OHLC Input Fields */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               {/* Open Input */}
               <div className="space-y-2">
@@ -380,7 +485,7 @@ Disclaimer: Forecasts are generated using Machine Learning based on historical N
               </div>
             </div>
 
-            {/* Micro-interactive Submit Button (Requirement 5) */}
+            {/* Submit Button */}
             <div className="flex items-center space-x-3.5 pt-4 border-t border-slate-200/40 dark:border-slate-800/40">
               <motion.button
                 whileHover={{ scale: 1.02 }}
@@ -392,12 +497,12 @@ Disclaimer: Forecasts are generated using Machine Learning based on historical N
                 {loading ? (
                   <>
                     <div className="animate-spin rounded-full border-2 border-t-transparent border-white w-4.5 h-4.5" />
-                    <span>Calculating Linear Inference...</span>
+                    <span>Executing {availableModels.find(m=>m.id===selectedModel)?.name || selectedModel} Inference...</span>
                   </>
                 ) : (
                   <>
                     <Play size={18} />
-                    <span>Predict Tomorrow's Close</span>
+                    <span>Predict Next-Day Close</span>
                   </>
                 )}
               </motion.button>
@@ -421,17 +526,17 @@ Disclaimer: Forecasts are generated using Machine Learning based on historical N
             <h4 className="font-bold text-sm">Model Input Specifications</h4>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-            The trained **Linear Regression** model (`linear_regression_model.pkl`) evaluates 4 primary input features: Open, High, Low, and Close.
+            The selected model evaluates 4 primary input features: Open, Low, High, and Close. Input feature ordering is dynamically matched with the model's exact signature.
           </p>
           <div className="p-4 bg-slate-100/60 dark:bg-slate-900/60 rounded-xl border border-slate-200/50 dark:border-slate-800 text-xs font-medium space-y-2 text-slate-600 dark:text-slate-400">
-            <div className="flex justify-between"><span>Inputs Required:</span><span className="font-bold text-emerald-500">4 Numeric Values</span></div>
-            <div className="flex justify-between"><span>Feature Vector:</span><span className="font-mono text-slate-800 dark:text-slate-200">[open, high, low, close]</span></div>
-            <div className="flex justify-between"><span>Target Variable:</span><span className="font-bold text-blue-500">Tomorrow_Close</span></div>
+            <div className="flex justify-between"><span>Selected Engine:</span><span className="font-bold text-blue-500">{availableModels.find(m=>m.id===selectedModel)?.name}</span></div>
+            <div className="flex justify-between"><span>Feature Order:</span><span className="font-mono text-slate-800 dark:text-slate-200">[open, low, high, close]</span></div>
+            <div className="flex justify-between"><span>Target Variable:</span><span className="font-bold text-emerald-500">Tomorrow_Close</span></div>
           </div>
         </SpotlightCard>
       </div>
 
-      {/* Prediction Result Display Section with Staggered WOW Reveal (Requirements 6, 7) */}
+      {/* Prediction Result Display Section */}
       <AnimatePresence>
         {result && (
           <motion.div
@@ -461,7 +566,7 @@ Disclaimer: Forecasts are generated using Machine Learning based on historical N
                     className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold uppercase tracking-wider mb-1"
                   >
                     <CheckCircle2 size={12} />
-                    <span>AI Model Forecast</span>
+                    <span>AI Model Forecast • {result.model_name}</span>
                   </motion.div>
                   <h3 className="text-2xl font-black text-slate-900 dark:text-white">Predicted Tomorrow's Close</h3>
                   <p className="text-xs text-slate-400 dark:text-slate-500">Generated on {result.date} at {result.time}</p>
@@ -487,9 +592,9 @@ Disclaimer: Forecasts are generated using Machine Learning based on historical N
               </div>
             </div>
 
-            {/* Metrics Breakout Display with Animated Numbers */}
+            {/* Metrics Breakout Display */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-slate-200/40 dark:border-slate-800/40 relative z-10">
-              {/* Predicted Price Prominent Display */}
+              {/* Predicted Price Display */}
               <motion.div 
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -500,7 +605,7 @@ Disclaimer: Forecasts are generated using Machine Learning based on historical N
                 <div className="text-3xl font-black text-emerald-600 dark:text-emerald-400">
                   <AnimatedCounter value={result.prediction} prefix="₹" decimals={2} duration={1.2} />
                 </div>
-                <span className="text-[11px] text-slate-400 font-medium">Model Forecast</span>
+                <span className="text-[11px] text-slate-400 font-medium">{result.model_name}</span>
               </motion.div>
 
               {/* Today Reference Price */}
@@ -565,12 +670,12 @@ Disclaimer: Forecasts are generated using Machine Learning based on historical N
         )}
       </AnimatePresence>
 
-      {/* Local Prediction History Panel */}
+      {/* Prediction History Panel */}
       <SpotlightCard className="p-6 md:p-8 space-y-4">
         <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
           <div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">Local Prediction Log</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Recorded forecasts run in your active browser session.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Recorded forecasts run in your active browser session across models.</p>
           </div>
 
           {history.length > 0 && (
@@ -595,7 +700,7 @@ Disclaimer: Forecasts are generated using Machine Learning based on historical N
 
         {history.length === 0 ? (
           <div className="py-12 text-center text-slate-400 dark:text-slate-500 text-sm font-medium">
-            Prediction history is empty. Input values above to calculate stock forecasts.
+            Prediction history is empty. Select a model and input values above to calculate forecasts.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -603,6 +708,7 @@ Disclaimer: Forecasts are generated using Machine Learning based on historical N
               <thead>
                 <tr className="border-b border-slate-200/50 dark:border-slate-800/50 text-slate-400 dark:text-slate-500 text-xs font-bold uppercase">
                   <th className="py-3 px-4">Timestamp</th>
+                  <th className="py-3 px-4">Selected Model</th>
                   <th className="py-3 px-4">Inputs (O / H / L / C)</th>
                   <th className="py-3 px-4 text-right">Predicted Close</th>
                   <th className="py-3 px-4 text-center">Direction</th>
@@ -614,6 +720,9 @@ Disclaimer: Forecasts are generated using Machine Learning based on historical N
                   <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20">
                     <td className="py-3.5 px-4 font-semibold text-slate-500 dark:text-slate-400 text-xs">
                       {item.date} {item.time}
+                    </td>
+                    <td className="py-3.5 px-4 font-bold text-blue-500 text-xs">
+                      {item.model_name || item.model}
                     </td>
                     <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400 text-xs font-medium">
                       O: {item.inputs.open.toFixed(2)} | H: {item.inputs.high.toFixed(2)} | L: {item.inputs.low.toFixed(2)} | C: {item.inputs.close.toFixed(2)}

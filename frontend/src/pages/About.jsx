@@ -2,15 +2,22 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { 
   FileCode, Database, Server, Laptop, Cpu, 
-  ArrowRight, ShieldCheck, Compass, HelpCircle, Code 
+  ArrowRight, ShieldCheck, Compass, HelpCircle, Code,
+  Layers, Award
 } from 'lucide-react';
 
 export const About = () => {
   const flowSteps = [
-    { name: 'User UI Input', desc: 'Enter OHLC daily boundaries', icon: Laptop, color: 'text-blue-500 bg-blue-500/10 border-blue-500/20' },
-    { name: 'Axios Client', desc: 'Secure asynchronous POST request', icon: FileCode, color: 'text-violet-500 bg-violet-500/10 border-violet-500/20' },
-    { name: 'FastAPI Router', desc: 'Input validation (Pydantic schemas)', icon: Server, color: 'text-indigo-500 bg-indigo-500/10 border-indigo-500/20' },
-    { name: 'Pickle Inference', desc: 'Evaluate Linear Regression weights', icon: Cpu, color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20' },
+    { name: 'User UI Input', desc: 'Select model & OHLC boundaries', icon: Laptop, color: 'text-blue-500 bg-blue-500/10 border-blue-500/20' },
+    { name: 'Axios Client', desc: 'Secure POST payload with model ID', icon: FileCode, color: 'text-violet-500 bg-violet-500/10 border-violet-500/20' },
+    { name: 'FastAPI Router', desc: 'Validate inputs & load selected model', icon: Server, color: 'text-indigo-500 bg-indigo-500/10 border-indigo-500/20' },
+    { name: 'Selected .pkl Model', desc: 'Run model.predict() on feature order', icon: Cpu, color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20' },
+  ];
+
+  const modelsList = [
+    'Linear Regression', 'Ridge Regression', 'Lasso Regression', 'Elastic Net',
+    'Decision Tree', 'Random Forest', 'Extra Trees', 'Gradient Boosting',
+    'Hist Gradient Boosting', 'SVR'
   ];
 
   return (
@@ -19,15 +26,15 @@ export const About = () => {
       <div>
         <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Technical Architecture & Stack</h2>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          In-depth explanation of the machine learning model pipeline and software components.
+          In-depth explanation of the multi-model machine learning pipeline and platform architecture.
         </p>
       </div>
 
       {/* Interactive Visual Flowchart */}
-      <section className="p-6 rounded-2xl glass-panel border border-white/20 dark:border-slate-800 shadow-xl space-y-6">
+      <section className="p-6 md:p-8 rounded-2xl glass-panel border border-white/20 dark:border-slate-800 shadow-xl space-y-6">
         <div>
-          <h3 className="text-lg font-bold text-slate-950 dark:text-white">Predictive Inference Pipeline</h3>
-          <p className="text-xs text-slate-400 dark:text-slate-500">Flow of execution from form entry to machine learning prediction output.</p>
+          <h3 className="text-lg font-bold text-slate-950 dark:text-white">Multi-Model Predictive Inference Pipeline</h3>
+          <p className="text-xs text-slate-400 dark:text-slate-500">Flow of execution from model selection to machine learning forecast generation.</p>
         </div>
 
         <div className="flex flex-col md:flex-row items-center justify-between gap-6 py-4">
@@ -64,35 +71,37 @@ export const About = () => {
         <div className="p-6 rounded-2xl glass-panel border border-white/20 dark:border-slate-800 shadow-lg space-y-4">
           <div className="flex items-center space-x-2 text-emerald-500">
             <Cpu size={20} />
-            <h3 className="font-bold text-lg text-slate-950 dark:text-white">Linear Regression Core</h3>
+            <h3 className="font-bold text-lg text-slate-950 dark:text-white">10 Trained Regression Engines</h3>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-            Linear Regression models the relationship between target dependent variables and independent features by fitting a linear equation to observed data:
+            The platform supports 10 distinct Machine Learning models pre-trained on historical Nifty 50 stock indices:
           </p>
-          <div className="p-4 bg-slate-100/50 dark:bg-slate-900/50 border border-slate-200/50 dark:border-slate-800/80 rounded-xl font-mono text-xs text-slate-650 dark:text-slate-350 text-center select-all">
-            Y = &beta;₀ + &beta;₁(open) + &beta;₂(high) + &beta;₃(low) + &beta;₄(close)
+          <div className="grid grid-cols-2 gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
+            {modelsList.map((m, i) => (
+              <div key={i} className="px-3 py-1.5 rounded-lg bg-slate-100/50 dark:bg-slate-900/50 border border-slate-200/50 dark:border-slate-800 text-[11px]">
+                • {m}
+              </div>
+            ))}
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-            The coefficients (&beta;<sub>i</sub>) are loaded statically from the `linear_regression_model.pkl` file, representing optimal parameters trained on multiple years of historical Nifty 50 index pricing. No retraining occurs on server startups, ensuring stable parameter evaluations.
+            When a user selects a model, the FastAPI backend routes the feature vector <span className="font-mono text-slate-800 dark:text-slate-200">[open, low, high, close]</span> directly to that model's pickled estimator file, executing <span className="font-mono">model.predict()</span> without fallback.
           </p>
         </div>
 
-        {/* Dataset Specifications */}
+        {/* Evaluation Metrics & Dataset */}
         <div className="p-6 rounded-2xl glass-panel border border-white/20 dark:border-slate-800 shadow-lg space-y-4">
           <div className="flex items-center space-x-2 text-blue-500">
             <Database size={20} />
-            <h3 className="font-bold text-lg text-slate-950 dark:text-white">Nifty 50 Dataset Details</h3>
+            <h3 className="font-bold text-lg text-slate-950 dark:text-white">Evaluation Metrics & Dataset</h3>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-            The backend imports `new_data.csv` which contains daily stock indices. Key data points captured are:
+            Models are evaluated on <span className="font-bold text-slate-800 dark:text-slate-200">new_data.csv</span> (4,603 records) targeting <span className="font-bold text-emerald-500">Tomorrow_Close</span>.
           </p>
-          <ul className="text-xs text-slate-500 dark:text-slate-400 space-y-2 list-disc list-inside pl-1.5">
-            <li><strong className="text-slate-800 dark:text-slate-200">date:</strong> Historical trading session timestamp.</li>
-            <li><strong className="text-slate-800 dark:text-slate-200">open / close:</strong> Price levels at trading session start and final bell.</li>
-            <li><strong className="text-slate-800 dark:text-slate-200">high / low:</strong> Daily price peaks and floor values.</li>
-            <li><strong className="text-slate-800 dark:text-slate-200">volume (conditional):</strong> Standard volume of shares traded.</li>
-            <li><strong className="text-slate-800 dark:text-slate-200">Tomorrow_Close:</strong> The next-day closing target utilized for baseline validations.</li>
-          </ul>
+          <div className="p-4 bg-slate-100/50 dark:bg-slate-900/50 border border-slate-200/50 dark:border-slate-800/80 rounded-xl space-y-2 text-xs">
+            <div className="flex justify-between"><span>Residual Sum of Squares (RSS):</span><span className="font-mono font-bold text-blue-500">sum((y - y_pred)²)</span></div>
+            <div className="flex justify-between"><span>Root Mean Squared Error (RMSE):</span><span className="font-mono font-bold text-indigo-500">sqrt(mean((y - y_pred)²))</span></div>
+            <div className="flex justify-between"><span>R² Score (Variance Fit):</span><span className="font-mono font-bold text-emerald-500">1 - (RSS / SS_tot)</span></div>
+          </div>
         </div>
       </div>
 
@@ -103,20 +112,20 @@ export const About = () => {
           <h3 className="font-bold text-lg text-slate-950 dark:text-white">Technology Integration</h3>
         </div>
         <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-          This full-stack system binds a highly optimized Python microservice with a reactive Vite frontend:
+          Full-stack architecture integrating a Python FastAPI microservice with a reactive React/Vite web application:
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
           <div className="p-4 rounded-xl bg-slate-100/50 dark:bg-slate-900/50 border border-slate-200/50 dark:border-slate-800">
-            <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 uppercase mb-1">1. FastAPI API Core</h4>
-            <p className="text-[10px] text-slate-450 dark:text-slate-500">Serves schema endpoints, health status, statistics calculation, and runs scikit-learn models asynchronously inside Uvicorn.</p>
+            <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 uppercase mb-1">1. FastAPI & Scikit-Learn</h4>
+            <p className="text-[10px] text-slate-450 dark:text-slate-500">Loads trained `.pkl` models at startup, computes RSS/RMSE/R² benchmarks, and runs predictions asynchronously.</p>
           </div>
           <div className="p-4 rounded-xl bg-slate-100/50 dark:bg-slate-900/50 border border-slate-200/50 dark:border-slate-800">
             <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 uppercase mb-1">2. Vite & React 19</h4>
-            <p className="text-[10px] text-slate-450 dark:text-slate-500">Leverages code-splitting, custom hooks, and React Context providers to handle Dark Mode toggles and Axios requests seamlessly.</p>
+            <p className="text-[10px] text-slate-450 dark:text-slate-500">Provides code-splitting, dark/light theme context, dynamic model selection dropdown, and Axios request interceptors.</p>
           </div>
           <div className="p-4 rounded-xl bg-slate-100/50 dark:bg-slate-900/50 border border-slate-200/50 dark:border-slate-800">
             <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 uppercase mb-1">3. Tailwind CSS & Motion</h4>
-            <p className="text-[10px] text-slate-450 dark:text-slate-500">Creates a high-fidelity dark glassmorphic design that handles multiple screens, with fluid hover transitions and Recharts tooltip integrations.</p>
+            <p className="text-[10px] text-slate-450 dark:text-slate-500">Renders a dark glassmorphic financial dashboard with animated counters, Recharts comparison graphs, and scroll transitions.</p>
           </div>
         </div>
       </section>
