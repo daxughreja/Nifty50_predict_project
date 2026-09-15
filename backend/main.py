@@ -445,19 +445,6 @@ def predict(payload: PredictionInput):
             detail=f"Prediction service failure ({matched_model_id}): {str(e)}"
         )
 
-@app.get("/api/stock-data", status_code=status.HTTP_200_OK)
-def get_stock_data():
-    """Returns dataset rows with NaNs sanitized to null."""
-    check_data_loaded()
-    try:
-        cleaned_df = df.replace({np.nan: None})
-        return cleaned_df.to_dict(orient="records")
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to process stock data: {str(e)}"
-        )
-
 @app.get("/api/latest", status_code=status.HTTP_200_OK)
 def get_latest_record():
     """Returns the most recent stock record from the dataset."""

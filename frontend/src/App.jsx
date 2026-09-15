@@ -10,7 +10,6 @@ import { Home } from './pages/Home';
 import { Dashboard } from './pages/Dashboard';
 import { Prediction } from './pages/Prediction';
 import { Performance } from './pages/Performance';
-import { Dataset } from './pages/Dataset';
 import { Analytics } from './pages/Analytics';
 import { About } from './pages/About';
 
@@ -46,7 +45,6 @@ export default function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/predict" element={<Prediction />} />
               <Route path="/performance" element={<Performance />} />
-              <Route path="/dataset" element={<Dataset />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/about" element={<About />} />
               <Route path="*" element={<NotFound />} />

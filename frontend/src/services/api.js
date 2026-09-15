@@ -86,19 +86,6 @@ export const apiService = {
   },
 
   /**
-   * Fetch complete dataset
-   */
-  async getStockData() {
-    try {
-      const response = await apiClient.get('/api/stock-data');
-      return response.data;
-    } catch (error) {
-      console.error('API Error (getStockData):', error);
-      throw error;
-    }
-  },
-
-  /**
    * Fetch latest stock record
    */
   async getLatestRecord() {

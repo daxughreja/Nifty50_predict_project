@@ -35,7 +35,6 @@ export const RootLayout = ({ children }) => {
     { name: 'Predictor', path: '/predict', icon: Cpu },
     { name: 'Performance', path: '/performance', icon: Award },
     { name: 'Analytics', path: '/analytics', icon: LineChart },
-    { name: 'Dataset', path: '/dataset', icon: Database },
     { name: 'About', path: '/about', icon: Info },
   ];
 

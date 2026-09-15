@@ -405,7 +405,6 @@ export const Home = () => {
             <Link to="/" className="hover:underline">Home</Link>
             <Link to="/predict" className="hover:underline">Prediction</Link>
             <Link to="/performance" className="hover:underline text-emerald-500">Performance</Link>
-            <Link to="/dataset" className="hover:underline">Dataset</Link>
             <Link to="/about" className="hover:underline">About</Link>
           </div>
         </div>
