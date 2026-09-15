@@ -20,6 +20,10 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 
+import time
+import requests
+import yfinance as yf
+
 # Load environment variables
 load_dotenv()
 
@@ -35,6 +39,171 @@ performance_cache = None
 
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "model")
 DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "new_data.csv")
+
+class LiveMarketService:
+    """
+    Fetches real-time and historical NIFTY 50 market data via Live Market API / yfinance.
+    Uses environment variables (MARKET_API_KEY, NIFTY_SYMBOL) and implements short TTL caching
+    and error handling.
+    """
+    def __init__(self):
+        self.api_key = os.getenv("MARKET_API_KEY", "")
+        self.symbol = os.getenv("NIFTY_SYMBOL", "^NSEI")
+        self.quote_ttl = 60   # Cache live quote for 60 seconds
+        self.chart_ttl = 300  # Cache live chart series for 5 minutes
+        self._cached_quote = None
+        self._quote_timestamp = 0
+        self._cached_chart = None
+        self._chart_timestamp = 0
+
+    def fetch_live_quote(self):
+        now = time.time()
+        if self._cached_quote and (now - self._quote_timestamp < self.quote_ttl):
+            return self._cached_quote
+
+        # 1. Try official REST API provider if valid MARKET_API_KEY is configured
+        if self.api_key and self.api_key.strip() != "your_market_api_key_here":
+            try:
+                # Example Finnhub / AlphaVantage live quote integration
+                url = f"https://finnhub.io/api/v1/quote?symbol={self.symbol}&token={self.api_key}"
+                resp = requests.get(url, timeout=5)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if "c" in data and data["c"] != 0:
+                        quote = {
+                            "date": datetime.date.today().isoformat(),
+                            "Date": datetime.date.today().isoformat(),
+                            "open": round(float(data.get("o", data["c"])), 2),
+                            "Open": round(float(data.get("o", data["c"])), 2),
+                            "high": round(float(data.get("h", data["c"])), 2),
+                            "High": round(float(data.get("h", data["c"])), 2),
+                            "low": round(float(data.get("l", data["c"])), 2),
+                            "Low": round(float(data.get("l", data["c"])), 2),
+                            "close": round(float(data["c"]), 2),
+                            "Close": round(float(data["c"]), 2),
+                            "volume": int(data.get("v", 0)),
+                            "Volume": int(data.get("v", 0)),
+                            "prev_close": round(float(data.get("pc", data["c"])), 2),
+                            "symbol": self.symbol,
+                            "source": "Live NIFTY 50 Market API (Finnhub)"
+                        }
+                        self._cached_quote = quote
+                        self._quote_timestamp = now
+                        return quote
+            except Exception as err:
+                logger.warning(f"Official MARKET_API_KEY request failed ({str(err)}), falling back to NIFTY live ticker feed.")
+
+        # 2. Live NIFTY 50 Ticker market API engine for ^NSEI
+        try:
+            ticker = yf.Ticker(self.symbol)
+            hist = ticker.history(period="5d")
+            if hist.empty:
+                raise ValueError(f"No live market data returned for symbol {self.symbol}")
+
+            latest_row = hist.iloc[-1]
+            prev_row = hist.iloc[-2] if len(hist) > 1 else latest_row
+            latest_date = hist.index[-1].strftime("%Y-%m-%d")
+
+            quote = {
+                "date": latest_date,
+                "Date": latest_date,
+                "open": round(float(latest_row["Open"]), 2),
+                "Open": round(float(latest_row["Open"]), 2),
+                "high": round(float(latest_row["High"]), 2),
+                "High": round(float(latest_row["High"]), 2),
+                "low": round(float(latest_row["Low"]), 2),
+                "Low": round(float(latest_row["Low"]), 2),
+                "close": round(float(latest_row["Close"]), 2),
+                "Close": round(float(latest_row["Close"]), 2),
+                "volume": int(latest_row["Volume"]) if ("Volume" in latest_row and not pd.isna(latest_row["Volume"])) else 0,
+                "Volume": int(latest_row["Volume"]) if ("Volume" in latest_row and not pd.isna(latest_row["Volume"])) else 0,
+                "prev_close": round(float(prev_row["Close"]), 2),
+                "symbol": self.symbol,
+                "source": "Live NIFTY 50 Market API"
+            }
+            self._cached_quote = quote
+            self._quote_timestamp = now
+            return quote
+        except Exception as e:
+            logger.error(f"Error fetching live NIFTY quote: {str(e)}")
+            if self._cached_quote:
+                return self._cached_quote
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Live NIFTY 50 market data service is temporarily unavailable. Please retry shortly."
+            )
+
+    def fetch_live_chart_data(self):
+        now = time.time()
+        if self._cached_chart and (now - self._chart_timestamp < self.chart_ttl):
+            return self._cached_chart
+
+        try:
+            ticker = yf.Ticker(self.symbol)
+            hist = ticker.history(period="6mo")
+            if hist.empty:
+                raise ValueError(f"No live chart data returned for symbol {self.symbol}")
+
+            records = []
+            for idx, row in hist.iterrows():
+                date_str = idx.strftime("%Y-%m-%d")
+                records.append({
+                    "date": date_str,
+                    "Date": date_str,
+                    "open": round(float(row["Open"]), 2),
+                    "Open": round(float(row["Open"]), 2),
+                    "high": round(float(row["High"]), 2),
+                    "High": round(float(row["High"]), 2),
+                    "low": round(float(row["Low"]), 2),
+                    "Low": round(float(row["Low"]), 2),
+                    "close": round(float(row["Close"]), 2),
+                    "Close": round(float(row["Close"]), 2),
+                    "volume": int(row["Volume"]) if ("Volume" in row and not pd.isna(row["Volume"])) else 0,
+                    "Volume": int(row["Volume"]) if ("Volume" in row and not pd.isna(row["Volume"])) else 0,
+                    "tomorrow_close": round(float(row["Close"]), 2),
+                    "Tomorrow_Close": round(float(row["Close"]), 2)
+                })
+
+            records = records[-100:]
+            self._cached_chart = records
+            self._chart_timestamp = now
+            return records
+        except Exception as e:
+            logger.error(f"Error fetching live NIFTY 50 chart series: {str(e)}")
+            if self._cached_chart:
+                return self._cached_chart
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Live NIFTY 50 chart data service is temporarily unavailable. Please retry shortly."
+            )
+
+    def fetch_live_statistics(self):
+        chart_data = self.fetch_live_chart_data()
+        if not chart_data:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Live NIFTY 50 market statistics service is temporarily unavailable."
+            )
+
+        closes = [r["close"] for r in chart_data if r.get("close") is not None]
+        opens = [r["open"] for r in chart_data if r.get("open") is not None]
+        highs = [r["high"] for r in chart_data if r.get("high") is not None]
+        lows = [r["low"] for r in chart_data if r.get("low") is not None]
+
+        return {
+            "total_records": len(chart_data),
+            "highest_close": round(float(max(closes)), 2) if closes else None,
+            "lowest_close": round(float(min(closes)), 2) if closes else None,
+            "average_close": round(float(np.mean(closes)), 2) if closes else None,
+            "average_open": round(float(np.mean(opens)), 2) if opens else None,
+            "average_high": round(float(np.mean(highs)), 2) if highs else None,
+            "average_low": round(float(np.mean(lows)), 2) if lows else None,
+            "total_models": len(MODEL_DEFINITIONS),
+            "active_models": len(models),
+            "source": "Live NIFTY 50 Market API"
+        }
+
+live_market_service = LiveMarketService()
 
 MODEL_DEFINITIONS = [
     {"id": "LinearRegression", "name": "Linear Regression", "file": "LinearRegression.pkl", "fallback": "linear_regression_model.pkl"},
@@ -447,55 +616,24 @@ def predict(payload: PredictionInput):
 
 @app.get("/api/latest", status_code=status.HTTP_200_OK)
 def get_latest_record():
-    """Returns the most recent stock record from the dataset."""
-    check_data_loaded()
-    try:
-        latest_row = df.iloc[-1].to_dict()
-        return {k: (None if pd.isna(v) else v) for k, v in latest_row.items()}
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch latest record: {str(e)}"
-        )
+    """Returns the latest real-time stock record from Live NIFTY 50 Market API."""
+    check_models_loaded()
+    return live_market_service.fetch_live_quote()
+
+@app.get("/api/live", status_code=status.HTTP_200_OK)
+def get_live_status():
+    """Returns current live NIFTY 50 market quote and connection status."""
+    check_models_loaded()
+    return live_market_service.fetch_live_quote()
 
 @app.get("/api/statistics", status_code=status.HTTP_200_OK)
 def get_statistics():
-    """Returns dataset statistics and numeric summary."""
-    check_data_loaded()
-    try:
-        cols = {c.lower(): c for c in df.columns}
-        close_col = cols.get("close", "close")
-        open_col = cols.get("open", "open")
-        high_col = cols.get("high", "high")
-        low_col = cols.get("low", "low")
-
-        stats = {
-            "total_records": int(len(df)),
-            "highest_close": float(df[close_col].max()) if close_col in df else None,
-            "lowest_close": float(df[close_col].min()) if close_col in df else None,
-            "average_close": float(df[close_col].mean()) if close_col in df else None,
-            "average_open": float(df[open_col].mean()) if open_col in df else None,
-            "average_high": float(df[high_col].mean()) if high_col in df else None,
-            "average_low": float(df[low_col].mean()) if low_col in df else None,
-            "total_models": len(MODEL_DEFINITIONS),
-            "active_models": len(models)
-        }
-        return stats
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to calculate statistics: {str(e)}"
-        )
+    """Returns live NIFTY 50 market statistics and numeric summary."""
+    check_models_loaded()
+    return live_market_service.fetch_live_statistics()
 
 @app.get("/api/chart", status_code=status.HTTP_200_OK)
 def get_chart_data():
-    """Returns the last 100 records for rendering charts."""
-    check_data_loaded()
-    try:
-        last_100_df = df.tail(100).replace({np.nan: None})
-        return last_100_df.to_dict(orient="records")
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch chart data: {str(e)}"
-        )
+    """Returns the last 100 sessions from Live NIFTY 50 Market API for rendering interactive charts."""
+    check_models_loaded()
+    return live_market_service.fetch_live_chart_data()
